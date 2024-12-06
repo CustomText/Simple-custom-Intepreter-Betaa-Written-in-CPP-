@@ -1,1 +1,336 @@
+#include <iostream>
+#include <vector>
+#include <sstream>
+#include <string>
+#include <map>
+using namespace std;
 
+map<string, int> intVariables;
+map<string, string> stringVariables;
+map<int, string> code;
+map<string, vector<string>> factories;
+
+int lineCounter = 0;
+
+map<string, int> ifCount;
+bool inIf = false;
+bool ifFalseCondition = true;
+int ifKeyPos = 0;
+vector<vector<string>> ifBlocks;
+vector<string> currentIfBlock;
+
+
+bool inFactory = false;
+string currentFactoryName;
+int factoryKeyPos = 0, produceKeyPos = 0;
+
+int whatex(const string& expression){
+    istringstream iss(expression);
+    int result = 0;
+    int num;
+    char oper = '+';
+    string token;
+
+    while(iss >> token){
+        if(token == "+" || token == "-" || token == "*" || token == "/"){
+            oper = token[0];
+        }
+        else{
+            if(intVariables.find(token) != intVariables.end()){
+                num = intVariables[token];
+            }
+            else{
+                try{
+                    num = stoi(token);
+                }
+                catch(const invalid_argument&){
+                    cout << "Error: Invalid integer expression '" << token << "'." << endl;
+                    return 0;
+                }
+            }
+
+            if(oper == '+'){
+                result += num;
+            }
+            else if(oper == '-'){
+                result -= num;
+            }
+            else if(oper == '*'){
+                result *= num;
+            }
+            else if(oper == '/'){
+                result /= num;
+            }
+        }
+    }
+    return result;
+}
+
+string Swhatex(const string& expression){
+    istringstream iss(expression);
+    string result;
+    string token;
+
+    while(iss >> token){
+        if(token == "&"){
+            continue;
+        }
+
+        if(token.front() == '"' && token.back() == '"'){
+            result += token.substr(1, token.length() - 2);
+        }
+        else if(stringVariables.find(token) != stringVariables.end()){
+            result += stringVariables[token];
+        }
+        else if(intVariables.find(token) != intVariables.end()){
+            result += to_string(intVariables[token]);
+        }
+        else{
+            try{
+                result += to_string(whatex(token));
+            }
+            catch(const invalid_argument&){
+                cout << "Error: Invalid token in expression '" << token << "'." << endl;
+                return "";
+            }
+        }
+    }
+    return result;
+}
+
+int whatcon(const string& condition){ // A note: make the code when the operation returns true it executes the following code :D
+    istringstream iss(condition);
+    string left, right;
+    string oper;
+    iss >> left >> oper >> right;
+
+    int leftWing = whatex(left);
+    int rightWing = whatex(right);
+
+    if(oper == "=="){
+        if(leftWing == rightWing){
+            return leftWing == rightWing;
+        }
+        else{
+            return false;
+        }
+    } 
+    else if(oper == "!="){
+        if(leftWing != rightWing){
+            return leftWing != rightWing;
+        }
+        else{
+            return false;
+        }
+    } 
+    else if(oper == "<"){
+        if(leftWing < rightWing){
+            return leftWing < rightWing;
+        }
+        else{
+            return false;
+        }
+    } 
+    else if(oper == ">"){
+        if(leftWing > rightWing){
+            return leftWing > rightWing;
+        }
+        else{
+            return false;
+        }
+    } 
+    else if(oper == "<="){
+        if(leftWing <= rightWing){
+            return leftWing <= rightWing;
+        }
+        else{
+            return false;
+        }
+    } 
+    else if(oper == ">="){
+        if(leftWing >= rightWing){
+            return leftWing >= rightWing;
+        }
+        else{
+            return false;
+        }
+    }
+}
+
+int processLine(const string& line);
+
+void executeIf(int ifIndex){
+    if(ifIndex > 0 && ifIndex <= ifBlocks.size()){
+        for(const string& ifLine : ifBlocks[ifIndex]){
+            processLine(ifLine);
+        }
+    }
+}
+
+void executeFactory(const string& factoryName){
+    if(factories.find(factoryName) != factories.end()){
+        for(const string& factoryLine : factories[factoryName]){
+            processLine(factoryLine);
+        }
+    }
+    else{
+        cout << "Factory '" << factoryName << "' not found!" << endl;
+    }
+}
+
+int processLine(const string& line){
+    istringstream iss(line);
+    string condition;
+
+    string factoryName;
+    string command;
+    iss >> command;
+
+    if(command == "factory"){
+        inFactory = true;
+        iss >> currentFactoryName;
+        factories[currentFactoryName] = vector<string>();
+    }
+    else if(command == "produce"){
+        if(inFactory){
+            inFactory = false;
+            for(int i = factoryKeyPos + 1; i < lineCounter; i++){
+                factories[currentFactoryName].push_back(code[i]);
+            }
+        }
+    }
+    else if(command == "print"){
+        string expression;
+        getline(iss, expression);
+
+        expression = expression.substr(expression.find_first_not_of(" "));
+
+        if(expression.find("product.") == 0){
+            string possFactoryName = expression.substr(8);
+
+            if(factories.find(possFactoryName) != factories.end()){
+                executeFactory(possFactoryName);
+                return 0;
+            }
+            // here is the place where I want to add the next implementation
+            else{
+                cout << "Error: Factory '" << possFactoryName << "' does not exist." << endl;
+                return 0;
+            }
+        }
+
+        string result = Swhatex(expression);
+        if(!inFactory){
+            if(!inIf){
+                cout << result << endl;
+            }
+        }
+    }
+    else if(command == "var"){
+        string result;
+        string token;
+        string variable;
+        string equals;
+        string expression;
+
+        iss >> variable >> equals;
+        getline(iss, expression);
+
+        expression = expression.substr(expression.find_first_not_of(" "));
+
+        if(expression.front() == '"'){
+            stringVariables[variable] = expression.substr(1, expression.length() - 2);
+        }
+        else{
+            intVariables[variable] = whatex(expression);
+        }
+    }
+    else if(command == "input"){
+        string arrow;
+        iss >> arrow;
+
+        if(arrow == "<-"){
+            string variable;
+            iss >> variable;
+
+            if(intVariables.find(variable) != intVariables.end()){
+                if(!inFactory){
+                    if(!inIf){
+                        cin >> intVariables[variable];
+                    }
+                }
+            }
+            else if(stringVariables.find(variable) != stringVariables.end()){
+                if(!inFactory){
+                    if(!inIf){
+                        cin >> stringVariables[variable];
+                    }
+                }
+            }
+            else{
+                cout << "Error: variable '" << variable << "' was not declared within this scope! :)" << endl;
+            }
+        }
+    }
+    else if(command == "if"){
+        inIf = true;
+        getline(iss, condition);
+        condition = condition.substr(condition.find_first_not_of(" "));
+
+        ifFalseCondition = !whatcon(condition);
+        currentIfBlock.clear();
+        ifKeyPos = lineCounter;
+    }
+    else if(command == "|"){
+        if(inIf){
+            inIf = false;
+
+            if(ifFalseCondition){
+                vector<string> newIfBlock;
+                for(const auto& line : currentIfBlock){
+                    newIfBlock.push_back(line);
+                }
+
+                int ifIndex = ifBlocks.size() - 1;
+
+                executeIf(ifIndex);
+            }
+        }
+        else{
+            cout << "error: could not find start of if statement ;)";
+        }
+    }
+    else if (inIf && ifFalseCondition){
+        currentIfBlock.push_back(line);
+    }
+    else if(command == "run"){
+        // ???
+    }
+
+    return 0;
+}
+
+void liner(const string& line){
+    code[lineCounter++] = line;
+    cout << lineCounter << "| ";
+}
+
+int main(){
+    string line;
+
+    cout << " ____________\n";
+    cout << "|myCode.betaa|\n";
+    cout << " ^^^^^^^^^^^^\n";
+    cout << "______________________________________________________________________________________________________\n";
+    cout << "\n";
+    cout << "\n";
+    cout << lineCounter << "| ";
+
+    while(getline(cin, line)){
+        if(line.empty()){
+            break;
+        }
+        liner(line);
+        processLine(line);
+    }
+}
