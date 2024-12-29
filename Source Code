@@ -14,11 +14,9 @@ int lineCounter = 0;
 
 map<string, int> ifCount;
 bool inIf = false;
-bool ifFalseCondition = true;
 int ifKeyPos = 0;
-vector<vector<string>> ifBlocks;
+map<int, vector<string>> ifBlocks;
 vector<string> currentIfBlock;
-
 
 bool inFactory = false;
 string currentFactoryName;
@@ -98,7 +96,7 @@ string Swhatex(const string& expression){
     return result;
 }
 
-int whatcon(const string& condition){ // A note: make the code when the operation returns true it executes the following code :D
+bool whatcon(const string& condition){
     istringstream iss(condition);
     string left, right;
     string oper;
@@ -108,60 +106,31 @@ int whatcon(const string& condition){ // A note: make the code when the operatio
     int rightWing = whatex(right);
 
     if(oper == "=="){
-        if(leftWing == rightWing){
-            return leftWing == rightWing;
-        }
-        else{
-            return false;
-        }
-    } 
-    else if(oper == "!="){
-        if(leftWing != rightWing){
-            return leftWing != rightWing;
-        }
-        else{
-            return false;
-        }
-    } 
-    else if(oper == "<"){
-        if(leftWing < rightWing){
-            return leftWing < rightWing;
-        }
-        else{
-            return false;
-        }
-    } 
-    else if(oper == ">"){
-        if(leftWing > rightWing){
-            return leftWing > rightWing;
-        }
-        else{
-            return false;
-        }
-    } 
-    else if(oper == "<="){
-        if(leftWing <= rightWing){
-            return leftWing <= rightWing;
-        }
-        else{
-            return false;
-        }
-    } 
-    else if(oper == ">="){
-        if(leftWing >= rightWing){
-            return leftWing >= rightWing;
-        }
-        else{
-            return false;
-        }
+        return leftWing == rightWing;
     }
+    else if(oper == "!="){
+        return leftWing != rightWing;
+    }
+    else if(oper == "<"){
+        return leftWing < rightWing;
+    }
+    else if(oper == ">"){
+        return leftWing > rightWing;
+    }
+    else if(oper == "<="){
+        return leftWing <= rightWing;
+    }
+    else if(oper == ">="){
+        return leftWing >= rightWing;
+    }
+    return false; // Default return value
 }
 
 int processLine(const string& line);
 
-void executeIf(int ifIndex){
-    if(ifIndex > 0 && ifIndex <= ifBlocks.size()){
-        for(const string& ifLine : ifBlocks[ifIndex]){
+void executeIf(int ifKeyPos){
+    if(ifBlocks.find(ifKeyPos) != ifBlocks.end()){
+        for(const string& ifLine : ifBlocks[ifKeyPos]){
             processLine(ifLine);
         }
     }
@@ -170,7 +139,34 @@ void executeIf(int ifIndex){
 void executeFactory(const string& factoryName){
     if(factories.find(factoryName) != factories.end()){
         for(const string& factoryLine : factories[factoryName]){
-            processLine(factoryLine);
+            if(factoryLine.find("if ") != string::npos){
+                inIf = true;
+                istringstream iss(factoryLine);
+                string command, condition;
+                iss >> command;
+                getline(iss, condition);
+                condition = condition.substr(condition.find_first_not_of(" "));
+                bool conditionResult = whatcon(condition);
+                currentIfBlock.clear();
+                ifKeyPos = lineCounter;
+
+                if(conditionResult){
+                    inIf = false;
+                    executeIf(ifKeyPos);
+                }
+            }
+            else if(factoryLine == "|"){
+                if(inIf){
+                    inIf = false;
+                    ifBlocks[ifKeyPos] = currentIfBlock;
+                }
+            }
+            else if(inIf && factoryLine != "|"){
+                currentIfBlock.push_back(factoryLine);
+            }
+            else{
+                processLine(factoryLine);
+            }
         }
     }
     else{
@@ -212,7 +208,6 @@ int processLine(const string& line){
                 executeFactory(possFactoryName);
                 return 0;
             }
-            // here is the place where I want to add the next implementation
             else{
                 cout << "Error: Factory '" << possFactoryName << "' does not exist." << endl;
                 return 0;
@@ -220,10 +215,8 @@ int processLine(const string& line){
         }
 
         string result = Swhatex(expression);
-        if(!inFactory){
-            if(!inIf){
-                cout << result << endl;
-            }
+        if(!inFactory && !inIf){
+            cout << result << endl;
         }
     }
     else if(command == "var"){
@@ -254,54 +247,19 @@ int processLine(const string& line){
             iss >> variable;
 
             if(intVariables.find(variable) != intVariables.end()){
-                if(!inFactory){
-                    if(!inIf){
-                        cin >> intVariables[variable];
-                    }
+                if(!inFactory && !inIf){
+                    cin >> intVariables[variable];
                 }
             }
             else if(stringVariables.find(variable) != stringVariables.end()){
-                if(!inFactory){
-                    if(!inIf){
-                        cin >> stringVariables[variable];
-                    }
+                if(!inFactory && !inIf){
+                    cin >> stringVariables[variable];
                 }
             }
             else{
                 cout << "Error: variable '" << variable << "' was not declared within this scope! :)" << endl;
             }
         }
-    }
-    else if(command == "if"){
-        inIf = true;
-        getline(iss, condition);
-        condition = condition.substr(condition.find_first_not_of(" "));
-
-        ifFalseCondition = !whatcon(condition);
-        currentIfBlock.clear();
-        ifKeyPos = lineCounter;
-    }
-    else if(command == "|"){
-        if(inIf){
-            inIf = false;
-
-            if(ifFalseCondition){
-                vector<string> newIfBlock;
-                for(const auto& line : currentIfBlock){
-                    newIfBlock.push_back(line);
-                }
-
-                int ifIndex = ifBlocks.size() - 1;
-
-                executeIf(ifIndex);
-            }
-        }
-        else{
-            cout << "error: could not find start of if statement ;)";
-        }
-    }
-    else if (inIf && ifFalseCondition){
-        currentIfBlock.push_back(line);
     }
     else if(command == "run"){
         // ???
