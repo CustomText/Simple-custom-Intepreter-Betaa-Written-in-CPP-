@@ -68,28 +68,43 @@ string Swhatex(const string& expression){
     istringstream iss(expression);
     string result;
     string token;
+    bool inQuotes = false;
+    string quotedString;
 
     while(iss >> token){
-        if(token == "&"){
-            continue;
-        }
-
-        if(token.front() == '"' && token.back() == '"'){
-            result += token.substr(1, token.length() - 2);
-        }
-        else if(stringVariables.find(token) != stringVariables.end()){
-            result += stringVariables[token];
-        }
-        else if(intVariables.find(token) != intVariables.end()){
-            result += to_string(intVariables[token]);
-        }
-        else{
-            try{
-                result += to_string(whatex(token));
+        if(token.front() == '"'){
+            inQuotes = true;
+            quotedString = token.substr(1);
+            if(token.back() == '"'){
+                inQuotes = false;
+                quotedString.pop_back();
+                result += quotedString;
+            } else {
+                result += quotedString + " ";
             }
-            catch(const invalid_argument&){
-                cout << "Error: Invalid token in expression '" << token << "'." << endl;
-                return "";
+        } else if(inQuotes){
+            if(token.back() == '"'){
+                inQuotes = false;
+                token.pop_back();
+                result += token;
+            } else {
+                result += token + " ";
+            }
+        } else if(token == "&"){
+            continue;
+        } else {
+            if(stringVariables.find(token) != stringVariables.end()){
+                result += stringVariables[token];
+            } else if(intVariables.find(token) != intVariables.end()){
+                result += to_string(intVariables[token]);
+            } else {
+                try{
+                    result += to_string(whatex(token));
+                }
+                catch(const invalid_argument&){
+                    cout << "Error: Invalid token in expression '" << token << "'." << endl;
+                    return "";
+                }
             }
         }
     }
